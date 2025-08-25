@@ -44,9 +44,7 @@ class StringCalculator:
         custom_delimiter, number_string = self._extract_custom_delimiter(numbers)
         
         # Get all delimiters to use
-        delimiters = self.default_delimiters.copy()
-        if custom_delimiter:
-            delimiters.append(custom_delimiter)
+        delimiters = self._get_all_delimiters(custom_delimiter)
         
         # Replace all delimiters with a common delimiter
         normalized_numbers = self._normalize_delimiters(number_string, delimiters)
@@ -54,13 +52,26 @@ class StringCalculator:
         # Split by the common delimiter and convert to integers
         number_list = [int(num.strip()) for num in normalized_numbers.split(',') if num.strip()]
         
-        # Validate no negative numbers
+        # Validate and filter numbers
         self._validate_no_negatives(number_list)
-        
-        # Filter out numbers bigger than 1000
         filtered_numbers = self._filter_large_numbers(number_list)
         
         return filtered_numbers
+    
+    def _get_all_delimiters(self, custom_delimiter):
+        """
+        Get list of all delimiters including custom ones.
+        
+        Args:
+            custom_delimiter (str): Custom delimiter or None
+            
+        Returns:
+            list: List of all delimiters to use
+        """
+        delimiters = self.default_delimiters.copy()
+        if custom_delimiter:
+            delimiters.append(custom_delimiter)
+        return delimiters
     
     def _extract_custom_delimiter(self, numbers):
         """
@@ -72,21 +83,33 @@ class StringCalculator:
         Returns:
             tuple: (custom_delimiter, number_string) or (None, original_string)
         """
-        if numbers.startswith('//'):
-            lines = numbers.split('\n', 1)
-            if len(lines) == 2:
-                delimiter_line = lines[0][2:]  # Remove '//'
-                number_string = lines[1]
-                
-                # Check if delimiter is in brackets format //[delimiter]\n
-                if delimiter_line.startswith('[') and delimiter_line.endswith(']'):
-                    delimiter = delimiter_line[1:-1]  # Remove brackets
-                    return delimiter, number_string
-                else:
-                    # Simple format //delimiter\n
-                    return delimiter_line, number_string
+        if not numbers.startswith('//'):
+            return None, numbers
+            
+        lines = numbers.split('\n', 1)
+        if len(lines) != 2:
+            return None, numbers
+            
+        delimiter_line = lines[0][2:]  # Remove '//'
+        number_string = lines[1]
         
-        return None, numbers
+        # Extract delimiter (with or without brackets)
+        delimiter = self._extract_delimiter_from_line(delimiter_line)
+        return delimiter, number_string
+    
+    def _extract_delimiter_from_line(self, delimiter_line):
+        """
+        Extract delimiter from delimiter line, handling bracket format.
+        
+        Args:
+            delimiter_line (str): The delimiter line after removing '//'
+            
+        Returns:
+            str: The extracted delimiter
+        """
+        if delimiter_line.startswith('[') and delimiter_line.endswith(']'):
+            return delimiter_line[1:-1]  # Remove brackets
+        return delimiter_line
     
     def _normalize_delimiters(self, numbers, delimiters=None):
         """
@@ -104,9 +127,23 @@ class StringCalculator:
             
         normalized = numbers
         for delimiter in delimiters:
-            if delimiter != ',':  # Don't replace commas with commas
-                normalized = normalized.replace(delimiter, ',')
+            normalized = self._replace_delimiter(normalized, delimiter)
         return normalized
+    
+    def _replace_delimiter(self, text, delimiter):
+        """
+        Replace a specific delimiter with comma if it's not already a comma.
+        
+        Args:
+            text (str): Text to process
+            delimiter (str): Delimiter to replace
+            
+        Returns:
+            str: Text with delimiter replaced
+        """
+        if delimiter != ',':  # Don't replace commas with commas
+            return text.replace(delimiter, ',')
+        return text
     
     def _validate_no_negatives(self, number_list):
         """
@@ -118,10 +155,34 @@ class StringCalculator:
         Raises:
             ValueError: If negative numbers are found
         """
-        negatives = [num for num in number_list if num < 0]
+        negatives = self._find_negative_numbers(number_list)
         if negatives:
-            negative_str = ', '.join(str(num) for num in negatives)
-            raise ValueError(f"negatives not allowed: {negative_str}")
+            self._raise_negative_error(negatives)
+    
+    def _find_negative_numbers(self, number_list):
+        """
+        Find negative numbers in the list.
+        
+        Args:
+            number_list (list): List of integers to check
+            
+        Returns:
+            list: List of negative numbers found
+        """
+        return [num for num in number_list if num < 0]
+    
+    def _raise_negative_error(self, negatives):
+        """
+        Raise error for negative numbers.
+        
+        Args:
+            negatives (list): List of negative numbers
+            
+        Raises:
+            ValueError: With formatted message
+        """
+        negative_str = ', '.join(str(num) for num in negatives)
+        raise ValueError(f"negatives not allowed: {negative_str}")
     
     def _filter_large_numbers(self, number_list, max_value=1000):
         """
